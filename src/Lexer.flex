@@ -17,7 +17,7 @@ espacio=[ \t\r\n]+
 %%
 
 // PALABRAS RESERVADAS
-("p#"|varent|varcad|varbool|ponerConsola|leerent|leercad|leerbol|si|entonces|fin|variables|codigo) {
+("p#"|varent|varcad|varbool|ponerConsola|printInt|printBool|leerent|leercad|leerbol|si|entonces|while|fin|variables|codigo) {
     Lexema = yytext();
     return Tokens.Reservadas;
 }

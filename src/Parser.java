@@ -29,7 +29,15 @@ public class Parser {
 
     private void error(String mensaje) throws Exception {
         int linea = actual != null ? actual.linea : -1;
-        throw new Exception("Renglón: " + linea + ", Error sintáctico: " + mensaje);
+        int columna = actual != null ? actual.columna : -1;
+        throw new Exception("Renglón: " + linea + ", Columna: " + columna
+                + ", Error sintáctico: " + mensaje);
+    }
+
+    private NodoArbol nuevoNodo(String nombre) {
+        return new NodoArbol(nombre,
+                actual != null ? actual.linea : 0,
+                actual != null ? actual.columna : 0);
     }
 
     private boolean esReservada(String palabra) {
@@ -48,20 +56,20 @@ public class Parser {
 
     public void programa() throws Exception {
 
-        raiz = new NodoArbol("PROGRAMA");
+        raiz = nuevoNodo("PROGRAMA");
 
         if (!esReservada("p#")) {
             error("El programa debe iniciar con p#");
         }
 
-        raiz.agregarHijo(new NodoArbol("Inicio: p#"));
+        raiz.agregarHijo(nuevoNodo("Inicio: p#"));
         avanzar();
 
         if (!esReservada("variables")) {
             error("Se esperaba la sección variables");
         }
 
-        NodoArbol nodoVariables = new NodoArbol("SECCION VARIABLES");
+        NodoArbol nodoVariables = nuevoNodo("SECCION VARIABLES");
         raiz.agregarHijo(nodoVariables);
         avanzar();
 
@@ -71,7 +79,7 @@ public class Parser {
             error("Se esperaba la sección codigo");
         }
 
-        NodoArbol nodoCodigo = new NodoArbol("SECCION CODIGO");
+        NodoArbol nodoCodigo = nuevoNodo("SECCION CODIGO");
         raiz.agregarHijo(nodoCodigo);
         avanzar();
 
@@ -81,7 +89,7 @@ public class Parser {
             error("Se esperaba fin");
         }
 
-        raiz.agregarHijo(new NodoArbol("Fin del programa"));
+        raiz.agregarHijo(nuevoNodo("Fin del programa"));
         avanzar();
 
         if (actual != null) {
@@ -97,11 +105,11 @@ public class Parser {
                 || actual.lexema.equals("varcad")
                 || actual.lexema.equals("varbool"))) {
 
-            NodoArbol declaracion = new NodoArbol("Declaración: " + actual.lexema);
+            NodoArbol declaracion = nuevoNodo("Declaración: " + actual.lexema);
             avanzar();
 
             if (actual != null && actual.token == Tokens.Identificador) {
-                declaracion.agregarHijo(new NodoArbol("Identificador: " + actual.lexema));
+                declaracion.agregarHijo(nuevoNodo("Identificador: " + actual.lexema));
                 avanzar();
             } else {
                 error("Se esperaba un identificador");
@@ -127,6 +135,12 @@ public class Parser {
         } else if (esReservada("ponerConsola")) {
             imprimir(padre);
 
+        } else if (esReservada("printInt")) {
+            imprimirEntero(padre);
+
+        } else if (esReservada("printBool")) {
+            imprimirBoolean(padre);
+
         } else if (esReservada("leerent")
                 || esReservada("leercad")
                 || esReservada("leerbol")) {
@@ -135,6 +149,9 @@ public class Parser {
         } else if (esReservada("si")) {
             condicional(padre);
 
+        } else if (esReservada("while")) {
+            bucle(padre);
+
         } else {
             error("Instrucción no válida");
         }
@@ -142,8 +159,8 @@ public class Parser {
 
     private void asignacion(NodoArbol padre) throws Exception {
 
-        NodoArbol nodo = new NodoArbol("Asignación");
-        nodo.agregarHijo(new NodoArbol("Variable: " + actual.lexema));
+        NodoArbol nodo = nuevoNodo("Asignación");
+        nodo.agregarHijo(nuevoNodo("Variable: " + actual.lexema));
 
         coincidir(Tokens.Identificador);
         coincidir(Tokens.Igual);
@@ -156,7 +173,33 @@ public class Parser {
 
     private void imprimir(NodoArbol padre) throws Exception {
 
-        NodoArbol nodo = new NodoArbol("Imprimir en consola");
+        NodoArbol nodo = nuevoNodo("Imprimir en consola");
+
+        avanzar();
+        coincidir(Tokens.ParentesisA);
+        expresion(nodo);
+        coincidir(Tokens.ParentesisC);
+        coincidir(Tokens.PC);
+
+        padre.agregarHijo(nodo);
+    }
+
+    private void imprimirEntero(NodoArbol padre) throws Exception {
+
+        NodoArbol nodo = nuevoNodo("Imprimir entero: printInt");
+
+        avanzar();
+        coincidir(Tokens.ParentesisA);
+        expresion(nodo);
+        coincidir(Tokens.ParentesisC);
+        coincidir(Tokens.PC);
+
+        padre.agregarHijo(nodo);
+    }
+
+    private void imprimirBoolean(NodoArbol padre) throws Exception {
+
+        NodoArbol nodo = nuevoNodo("Imprimir booleano: printBool");
 
         avanzar();
         coincidir(Tokens.ParentesisA);
@@ -169,13 +212,13 @@ public class Parser {
 
     private void lectura(NodoArbol padre) throws Exception {
 
-        NodoArbol nodo = new NodoArbol("Lectura: " + actual.lexema);
+        NodoArbol nodo = nuevoNodo("Lectura: " + actual.lexema);
 
         avanzar();
         coincidir(Tokens.ParentesisA);
 
         if (actual != null && actual.token == Tokens.Identificador) {
-            nodo.agregarHijo(new NodoArbol("Variable: " + actual.lexema));
+            nodo.agregarHijo(nuevoNodo("Variable: " + actual.lexema));
             avanzar();
         } else {
             error("Se esperaba identificador en lectura");
@@ -189,7 +232,7 @@ public class Parser {
 
     private void condicional(NodoArbol padre) throws Exception {
 
-        NodoArbol nodo = new NodoArbol("Condicional SI");
+        NodoArbol nodo = nuevoNodo("Condicional SI");
 
         avanzar();
         coincidir(Tokens.ParentesisA);
@@ -206,7 +249,7 @@ public class Parser {
 
         avanzar();
 
-        NodoArbol cuerpo = new NodoArbol("Cuerpo del SI");
+        NodoArbol cuerpo = nuevoNodo("Cuerpo del SI");
 
         while (actual != null && !esReservada("fin")) {
             instruccion(cuerpo);
@@ -222,16 +265,45 @@ public class Parser {
         padre.agregarHijo(nodo);
     }
 
+    private void bucle(NodoArbol padre) throws Exception {
+
+        NodoArbol nodo = nuevoNodo("Bucle MIENTRAS");
+
+        avanzar();
+        coincidir(Tokens.ParentesisA);
+
+        expresion(nodo);
+        operadorRelacional(nodo);
+        expresion(nodo);
+
+        coincidir(Tokens.ParentesisC);
+
+        NodoArbol cuerpo = nuevoNodo("Cuerpo del MIENTRAS");
+
+        while (actual != null && !esReservada("fin")) {
+            instruccion(cuerpo);
+        }
+
+        if (!esReservada("fin")) {
+            error("Se esperaba fin del bucle");
+        }
+
+        avanzar();
+
+        nodo.agregarHijo(cuerpo);
+        padre.agregarHijo(nodo);
+    }
+
     private void expresion(NodoArbol padre) throws Exception {
 
-        NodoArbol nodoExpresion = new NodoArbol("Expresión");
+        NodoArbol nodoExpresion = nuevoNodo("Expresión");
 
         termino(nodoExpresion);
 
         while (actual != null
                 && (actual.token == Tokens.Suma || actual.token == Tokens.Resta)) {
 
-            nodoExpresion.agregarHijo(new NodoArbol("Operador: " + actual.lexema));
+            nodoExpresion.agregarHijo(nuevoNodo("Operador: " + actual.lexema));
             avanzar();
             termino(nodoExpresion);
         }
@@ -246,7 +318,7 @@ public class Parser {
         while (actual != null
                 && (actual.token == Tokens.Multiplicacion || actual.token == Tokens.Division)) {
 
-            padre.agregarHijo(new NodoArbol("Operador: " + actual.lexema));
+            padre.agregarHijo(nuevoNodo("Operador: " + actual.lexema));
             avanzar();
             factor(padre);
         }
@@ -262,7 +334,7 @@ public class Parser {
                 || actual.token == Tokens.Numero
                 || actual.token == Tokens.Cadena) {
 
-            padre.agregarHijo(new NodoArbol("Valor: " + actual.lexema));
+            padre.agregarHijo(nuevoNodo("Valor: " + actual.lexema));
             avanzar();
 
         } else if (actual.token == Tokens.ParentesisA) {
@@ -284,7 +356,7 @@ public class Parser {
                 || actual.token == Tokens.Mayor
                 || actual.token == Tokens.Menor)) {
 
-            padre.agregarHijo(new NodoArbol("Operador relacional: " + actual.lexema));
+            padre.agregarHijo(nuevoNodo("Operador relacional: " + actual.lexema));
             avanzar();
 
         } else {
@@ -298,5 +370,9 @@ public class Parser {
         }
 
         return raiz.imprimir("");
+    }
+
+    public NodoArbol obtenerRaiz() {
+        return raiz;
     }
 }

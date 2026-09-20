@@ -36,6 +36,7 @@ public class FramePrincipal extends JFrame {
     private Stack<Integer> pilaParentesis = new Stack<>();
     private boolean cadenaAbierta = false;
     private int ultimaLineaProcesada = 1;
+    private int ultimaColumnaProcesada = 1;
     private boolean ultimoTokenFuePuntoComa = true;
     private String ultimoLexema = "";
     private String ultimoTokenNombre = "";
@@ -47,7 +48,8 @@ public class FramePrincipal extends JFrame {
                     "codigo",
                     "fin",
                     "si",
-                    "entonces"
+                    "entonces",
+                    "while"
             ));
 
     public FramePrincipal() {
@@ -128,6 +130,7 @@ public class FramePrincipal extends JFrame {
                 }
 
                 int lineaActual = lexer.yyline + 1;
+                int columnaActual = lexer.ultimaColumna;
                 String lexemaActual = lexer.Lexema;
                 String nombreToken = obtenerNombreToken(token);
 
@@ -149,11 +152,14 @@ public class FramePrincipal extends JFrame {
                         erroresEncontrados.append(
                                 "Renglón: "
                                         + ultimaLineaProcesada
+                                        + ", Columna: "
+                                        + ultimaColumnaProcesada
                                         + ", Error: Falta un punto y coma (;)\n"
                         );
                     }
 
                     ultimaLineaProcesada = lineaActual;
+                    ultimaColumnaProcesada = columnaActual;
                 }
 
                 ultimoTokenFuePuntoComa = (token == Tokens.PC);
@@ -172,6 +178,8 @@ public class FramePrincipal extends JFrame {
                         erroresEncontrados.append(
                                 "Renglón: "
                                         + lineaActual
+                                        + ", Columna: "
+                                        + columnaActual
                                         + ", Error: Paréntesis ')' sin apertura\n"
                         );
                     }
@@ -182,6 +190,8 @@ public class FramePrincipal extends JFrame {
                     erroresEncontrados.append(
                             "Renglón: "
                                     + lineaActual
+                                    + ", Columna: "
+                                    + columnaActual
                                     + ", Error léxico en: "
                                     + lexemaActual
                                     + "\n"
@@ -203,6 +213,8 @@ public class FramePrincipal extends JFrame {
                 resultadoTok.append(
                         "Renglón: "
                                 + lineaActual
+                                + ", Columna: "
+                                + columnaActual
                                 + ", Lexema: "
                                 + lexemaActual
                                 + ", Token: "
@@ -218,6 +230,7 @@ public class FramePrincipal extends JFrame {
                                 token,
                                 nombreToken,
                                 lineaActual,
+                                columnaActual,
                                 ref
                         )
                 );
@@ -253,7 +266,9 @@ public class FramePrincipal extends JFrame {
             }
 
             String resultadoSintactico;
+            String resultadoSemantico = "";
             String arbol = "";
+            String anexoSemantico = "";
 
             try {
 
@@ -261,6 +276,77 @@ public class FramePrincipal extends JFrame {
                 parser.programa();
 
                 arbol = parser.obtenerArbol();
+
+                AnalizadorSemantico semantico = new AnalizadorSemantico();
+                java.util.List<String> erroresSemanticos =
+                        semantico.analizar(parser.obtenerRaiz());
+
+                StringBuilder resultadoSem = new StringBuilder();
+
+                resultadoSem.append("\n\n========== ANALISIS SEMANTICO ==========\n");
+
+                if (erroresSemanticos.isEmpty()) {
+                    resultadoSem.append("Análisis semántico correcto.\n");
+
+                    // Tabla de símbolos que alimentó y consultó el análisis.
+                    java.util.Map<String, AnalizadorSemantico.Tipo> tablaSem =
+                            semantico.obtenerTablaSimbolos();
+
+                    resultadoSem.append(
+                            "\n--- TABLA DE SÍMBOLOS (variable -> tipo) ---\n"
+                    );
+
+                    StringBuilder anexoTabla = new StringBuilder();
+
+                    if (tablaSem.isEmpty()) {
+                        resultadoSem.append(
+                                "(el programa no declara variables)\n"
+                        );
+                    } else {
+                        for (java.util.Map.Entry<String, AnalizadorSemantico.Tipo> e
+                                : tablaSem.entrySet()) {
+
+                            resultadoSem.append("   ")
+                                    .append(e.getKey())
+                                    .append(" -> ")
+                                    .append(AnalizadorSemantico
+                                            .tipoEnEspanol(e.getValue()))
+                                    .append("\n");
+
+                            anexoTabla.append(e.getKey())
+                                    .append(" | ")
+                                    .append(AnalizadorSemantico
+                                            .tipoEnEspanol(e.getValue()))
+                                    .append("\n");
+                        }
+                    }
+
+                    anexoSemantico = anexoTabla.toString();
+
+                    // Expresiones evaluadas por plegado de constantes.
+                    resultadoSem.append(
+                            "\n--- EVALUACIÓN DE EXPRESIONES (plegado de constantes) ---\n"
+                    );
+
+                    java.util.List<String> evaluaciones =
+                            semantico.obtenerEvaluaciones();
+
+                    if (evaluaciones.isEmpty()) {
+                        resultadoSem.append(
+                                "(no hay expresiones constantes que evaluar)\n"
+                        );
+                    } else {
+                        for (String ev : evaluaciones) {
+                            resultadoSem.append("   ").append(ev).append("\n");
+                        }
+                    }
+                } else {
+                    for (String e : erroresSemanticos) {
+                        resultadoSem.append(e).append("\n");
+                    }
+                }
+
+                resultadoSemantico = resultadoSem.toString();
 
                 resultadoSintactico =
                         "\n\n========== ANALISIS SINTACTICO ==========\n"
@@ -280,11 +366,12 @@ public class FramePrincipal extends JFrame {
 
             txtaSalida.setText(
                     resultadoTok.toString()
+                            + resultadoSemantico
                             + resultadoSintactico
             );
 
             archivoTok(resultadoTok.toString(), rutaBase, nombre);
-            archivoTab(tablaSimbolos, rutaBase, nombre);
+            archivoTab(tablaSimbolos, rutaBase, nombre, anexoSemantico);
             archivoArbol(arbol, rutaBase, nombre);
 
             JOptionPane.showMessageDialog(
@@ -320,6 +407,7 @@ public class FramePrincipal extends JFrame {
 
         cadenaAbierta = false;
         ultimaLineaProcesada = 1;
+        ultimaColumnaProcesada = 1;
         ultimoTokenFuePuntoComa = true;
         ultimoLexema = "";
         ultimoTokenNombre = "";
@@ -389,7 +477,8 @@ public class FramePrincipal extends JFrame {
     private void archivoTab(
             java.util.List<EntradaTabla> tabla,
             String ruta,
-            String nombre
+            String nombre,
+            String anexoSemantico
     ) {
 
         try (PrintWriter escribir =
@@ -416,6 +505,14 @@ public class FramePrincipal extends JFrame {
                 );
 
                 num++;
+            }
+
+            if (!anexoSemantico.isEmpty()) {
+                escribir.println(
+                        "\n--- TABLA DE SÍMBOLOS DEL ANÁLISIS SEMÁNTICO ---"
+                );
+                escribir.println("LEXEMA | TIPO");
+                escribir.print(anexoSemantico);
             }
 
         } catch (Exception e) {

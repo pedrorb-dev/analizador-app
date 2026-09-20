@@ -5,7 +5,13 @@ public class Lexer {
     private String contenido;
     private int pos = 0;
 
+    // Posición (índice) en la que comienza la línea actual; permite calcular
+    // la COLUMNA de cada token como (pos - inicioLinea + 1).
+    private int inicioLinea = 0;
+
     public int yyline = 0;
+    // Columna (1-based) en la que inicia el último token generado.
+    public int ultimaColumna = 1;
     public String Lexema = "";
 
     public Lexer(Reader reader) throws IOException {
@@ -28,6 +34,7 @@ public class Lexer {
             // Saltos de línea
             if (c == '\n') {
                 yyline++;
+                inicioLinea = pos + 1;
                 pos++;
                 continue;
             }
@@ -62,6 +69,7 @@ public class Lexer {
 
                     if (contenido.charAt(pos) == '\n') {
                         yyline++;
+                        inicioLinea = pos + 1;
                     }
 
                     pos++;
@@ -73,6 +81,9 @@ public class Lexer {
 
                 continue;
             }
+
+            // Ya en el inicio de un token: calculamos su columna.
+            ultimaColumna = pos - inicioLinea + 1;
 
             // Palabra reservada especial p#
             if (c == 'p' && pos + 1 < contenido.length()
@@ -219,6 +230,7 @@ public class Lexer {
 
             if (contenido.charAt(pos) == '\n') {
                 yyline++;
+                inicioLinea = pos + 1;
                 Lexema = contenido.substring(inicio, pos);
                 return Tokens.ERROR;
             }
@@ -244,11 +256,14 @@ public class Lexer {
                 || palabra.equals("varcad")
                 || palabra.equals("varbool")
                 || palabra.equals("ponerConsola")
+                || palabra.equals("printInt")
+                || palabra.equals("printBool")
                 || palabra.equals("leerent")
                 || palabra.equals("leercad")
                 || palabra.equals("leerbol")
                 || palabra.equals("si")
                 || palabra.equals("entonces")
+                || palabra.equals("while")
                 || palabra.equals("fin")
                 || palabra.equals("variables")
                 || palabra.equals("codigo");
