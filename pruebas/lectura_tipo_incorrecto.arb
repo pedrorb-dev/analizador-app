@@ -1,0 +1,15 @@
+==============================================
+        ÁRBOL DE ANÁLISIS SINTÁCTICO
+==============================================
+Archivo analizado: lectura_tipo_incorrecto
+----------------------------------------------
+PROGRAMA
+   Inicio: p#
+   SECCION VARIABLES
+      Declaración: varbool
+         Identificador: bandera
+   SECCION CODIGO
+      Lectura: leerent
+         Variable: bandera
+   Fin del programa
+

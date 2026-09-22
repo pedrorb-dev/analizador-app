@@ -9,17 +9,17 @@ import java.util.Map;
  * Análizador semántico del lenguaje.
  *
  * Recorre el árbol sintáctico (AST) en UNA SOLA PASADA y comprueba:
- *   - que toda variable usada esté declarada en el ámbito visible (alcance),
- *   - que los tipos de expresiones, asignaciones y condiciones sean válidos,
- *   - que las funciones (ponerConsola, printInt, printBool, leer*) reciban
- *     argumentos compatibles con su operación.
+ * - que toda variable usada esté declarada en el ámbito visible (alcance),
+ * - que los tipos de expresiones, asignaciones y condiciones sean válidos,
+ * - que las funciones (ponerConsola, printInt, printBool, leer*) reciban
+ * argumentos compatibles con su operación.
  *
  * Para ello trabaja con las dos estructuras clásicas del análisis semántico:
- *   - TABLA DE SÍMBOLOS: mapa (variable -> tipo) que se ALIMENTA al declarar
- *     cada variable y se CONSULTA cada vez que una variable se usa.
- *   - PILA SEMÁNTICA: pila de entradas (tipo + valor) con la que se evalúan
- *     las expresiones de abajo hacia arriba, aplicando PLEGADO DE CONSTANTES
- *     cuando ambos operandos son literales.
+ * - TABLA DE SÍMBOLOS: mapa (variable -> tipo) que se ALIMENTA al declarar
+ * cada variable y se CONSULTA cada vez que una variable se usa.
+ * - PILA SEMÁNTICA: pila de entradas (tipo + valor) con la que se evalúan
+ * las expresiones de abajo hacia arriba, aplicando PLEGADO DE CONSTANTES
+ * cuando ambos operandos son literales.
  *
  * El ÁMBITO se respeta con una pila de scopes: cada cuerpo de SI o MIENTRAS
  * abre un ámbito nuevo y las variables se buscan de adentro hacia afuera.
@@ -260,8 +260,8 @@ public class AnalizadorSemantico {
         String funcion = instr.getNombre().startsWith("Imprimir entero:")
                 ? "printInt"
                 : instr.getNombre().startsWith("Imprimir booleano:")
-                ? "printBool"
-                : "ponerConsola";
+                        ? "printBool"
+                        : "ponerConsola";
 
         for (NodoArbol hijo : instr.getHijos()) {
             if (!hijo.getNombre().equals("Expresión")) {
@@ -344,7 +344,8 @@ public class AnalizadorSemantico {
             // Si la condición es constante, se resuelve en tiempo de análisis.
             if (cond != null && cond.constante && cond.tipo == Tipo.BOOL) {
                 String inicio = instr.getNombre().startsWith("Bucle")
-                        ? "while" : "si";
+                        ? "while"
+                        : "si";
                 evaluaciones.add("Línea " + instr.linea + ": " + inicio + " ("
                         + textoExpresion(exprIzq) + " " + opRel + " "
                         + textoExpresion(exprDer) + ") => "
@@ -427,9 +428,11 @@ public class AnalizadorSemantico {
     private void reducir(Deque<String> operadores, NodoArbol exp) {
         String op = operadores.pop();
         EntradaSemantica der = pilaSemantica.isEmpty()
-                ? null : pilaSemantica.pop();
+                ? null
+                : pilaSemantica.pop();
         EntradaSemantica izq = pilaSemantica.isEmpty()
-                ? null : pilaSemantica.pop();
+                ? null
+                : pilaSemantica.pop();
         pilaSemantica.push(aplicarOperador(op, izq, der, exp));
     }
 
@@ -555,8 +558,8 @@ public class AnalizadorSemantico {
                 int b = der.valorInt;
                 res.valorBool = op.equals("==") ? a == b
                         : op.equals("!=") ? a != b
-                        : op.equals(">") ? a > b
-                        : a < b;
+                                : op.equals(">") ? a > b
+                                        : a < b;
             } else if (izq.tipo == Tipo.CADENA) {
                 String a = izq.valorCadena;
                 String b = der.valorCadena;

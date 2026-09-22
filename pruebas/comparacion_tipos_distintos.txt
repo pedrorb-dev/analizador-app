@@ -1,0 +1,9 @@
+p#
+variables
+varent a;
+varcad b;
+codigo
+si (a == b) entonces
+    a = 1;
+fin
+fin

@@ -1,0 +1,8 @@
+p#
+variables
+varcad s;
+codigo
+si ("a" > 1) entonces
+    s = s;
+fin
+fin

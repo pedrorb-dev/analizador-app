@@ -1,0 +1,12 @@
+Renglón: 1, Columna: 1, Lexema: p#, Token: Reservadas, REF: 100
+Renglón: 2, Columna: 1, Lexema: variables, Token: Reservadas, REF: 101
+Renglón: 3, Columna: 1, Lexema: varbool, Token: Reservadas, REF: 102
+Renglón: 3, Columna: 9, Lexema: bandera, Token: Identificador, REF: 200
+Renglón: 3, Columna: 16, Lexema: ;, Token: PC, REF: -1
+Renglón: 4, Columna: 1, Lexema: codigo, Token: Reservadas, REF: 103
+Renglón: 5, Columna: 1, Lexema: leerent, Token: Reservadas, REF: 104
+Renglón: 5, Columna: 8, Lexema: (, Token: ParentesisA, REF: -1
+Renglón: 5, Columna: 9, Lexema: bandera, Token: Identificador, REF: 200
+Renglón: 5, Columna: 16, Lexema: ), Token: ParentesisC, REF: -1
+Renglón: 5, Columna: 17, Lexema: ;, Token: PC, REF: -1
+Renglón: 6, Columna: 1, Lexema: fin, Token: Reservadas, REF: 105

@@ -1,0 +1,6 @@
+p#
+variables
+varbool bandera;
+codigo
+leerent(bandera);
+fin

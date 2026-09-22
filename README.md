@@ -1,15 +1,17 @@
 # Analizador
 
-Analizador léxico y sintáctico para un lenguaje de programación educativo e imperativo, implementado en Java. El programa ofrece una interfaz gráfica (Swing) que recibe un archivo fuente, lo descompone en tokens, valida su gramática y genera archivos de salida con los resultados del análisis.
+Analizador léxico, sintáctico y semántico para un lenguaje de programación educativo e imperativo, implementado en Java. El programa ofrece una interfaz gráfica (Swing) que recibe un archivo fuente, lo descompone en tokens, valida su gramática y tipos, y genera archivos de salida con los resultados del análisis.
 
 ## Características
 
 - **Análisis léxico**: convierte el código fuente en una secuencia de tokens (palabras reservadas, identificadores, números, cadenas, operadores y símbolos).
 - **Análisis sintáctico**: valida la estructura del programa según la gramática definida mediante un parser descendente recursivo y construye un árbol de análisis.
+- **Análisis semántico**: comprueba la corrección de tipos y reglas que no se pueden verificar durante el análisis sintáctico (variables declaradas y usadas correctamente, tipos de expresiones, condiciones booleanas).
 - **Detección de errores**:
   - Léxicos: cadenas sin cerrar, número seguido de letras, identificadores con caracteres no ASCII o que empiezan con guion bajo, símbolos no válidos.
   - Estructurales: punto y coma (`;`) faltante entre líneas, paréntesis desbalanceados, comillas sin cerrar.
   - Sintácticos: instrucciones o expresiones mal formadas.
+  - Semánticos: variable no declarada o declarada dos veces, tipos incompatibles, operandos no enteros en expresiones aritméticas, condiciones no booleanas.
 - **Tabla de símbolos**: asigna referencias (REF) únicas a tokens relevantes (reservadas `100+`, identificadores `200+`, números `300+`, cadenas `400+`, errores `1900+`).
 - **Comentarios**: soporta `//` (una línea) y `/* ... */` (multilínea).
 - **Entrada y salida por archivos**: genera un `.tok`, `.tab`, `.dep` y `.arb` junto al archivo fuente analizado.
@@ -31,10 +33,13 @@ El lenguaje analizado tiene la siguiente estructura:
 | `variables` | Inicia la sección de declaraciones |
 | `varent`, `varcad`, `varbool` | Declaración de variables (entero, cadena, booleano) |
 | `codigo` | Inicia la sección de instrucciones |
-| `ponerConsola` | Muestra un valor en consola |
+| `ponerConsola` | Muestra un valor en consola (cualquier tipo) |
+| `printInt` | Muestra un valor, que debe ser de tipo entero |
+| `printBool` | Muestra un valor, que debe ser de tipo booleano |
 | `leerent`, `leercad`, `leerbol` | Lectura de un valor (entero, cadena, booleano) |
-| `si`, `entonces`, `fin` | Estructura condicional |
-| `fin` | Termina el programa o un bloque condicional |
+| `si`, `entonces`, `fin` | Estructura condicional con condición relacional |
+| `while`, `fin` | Bucle mientras se cumpla la condición relacional |
+| `fin` | Termina el programa o un bloque condicional/bucle |
 
 ### Ejemplo de programa
 
@@ -45,12 +50,28 @@ varent a;
 varcad mensaje;
 codigo
 a = 5 + 3 * 2;
-ponerConsola(a);
+mensaje = "hola";
+printInt(a);
 si (a > 10) entonces
-    ponerConsola("mayor");
+    ponerConsola(mensaje);
+fin
+while (a > 0)
+    a = a - 1;
 fin
 fin
 ```
+
+### Tipos y reglas semánticas
+
+- Tipos: `varent` → entero (`INT`), `varcad` → cadena (`CADENA`) y `varbool` → booleano (`BOOL`).
+- Toda variable usada en el cuerpo debe estar declarada, y ninguna puede declararse dos veces.
+- En una asignación, el tipo de la variable y el de la expresión deben coincidir.
+- `+`, `-`, `*` y `/`: ambos operandos deben ser `INT` y el resultado es `INT`.
+- `==` y `!=`: ambos operandos deben tener el mismo tipo; el resultado es `BOOL`.
+- `>` y `<`: ambos operandos deben ser `INT`; el resultado es `BOOL`.
+- `printInt` exige una expresión `INT`; `printBool` exige una expresión `BOOL`; `ponerConsola` admite cualquier tipo.
+- `leerent` exige una variable `INT`, `leercad` una `CADENA` y `leerbol` una `BOOL`.
+- La condición de `si`/`while` es siempre una comparación relacional y, por tanto, de tipo `BOOL`.
 
 ### Operadores
 
@@ -74,7 +95,8 @@ fin
 | `src/Tokens.java` | Enum con los tipos de tokens del lenguaje. |
 | `src/TokenData.java` | Contenedor de datos de un token (lexema, tipo, línea, referencia). |
 | `src/Parser.java` | Analizador sintáctico descendente recursivo. Valida la estructura y construye el árbol. |
-| `src/NodoArbol.java` | Representación de los nodos del árbol de análisis sintáctico. |
+| `src/NodoArbol.java` | Representación de los nodos del árbol de análisis sintáctico (con línea de código). |
+| `src/AnalizadorSemantico.java` | Analizador semántico. Recorre el árbol, construye la tabla de tipos y reporta errores. |
 | `lib/` | Dependencias de referencia (JFlex y CUP). |
 | `build.xml`, `nbproject/` | Proyecto de compilación con Ant/NetBeans. |
 | `.idea/` | Configuración del proyecto para IntelliJ IDEA. |
@@ -125,7 +147,8 @@ java -cp build FramePrincipal
 3. Durante el recorrido se valida el uso de punto y coma, el balance de paréntesis y las cadenas abiertas.
 4. Se genera la tabla de símbolos asignando REF únicos por lexema.
 5. `Parser.programa()` valida la estructura sintáctica y construye el árbol.
-6. Los resultados se muestran en pantalla y se guardan en los archivos de salida.
+6. `AnalizadorSemantico.analizar()` recorre el árbol y comprueba declaraciones, uso de variables y tipos; si detecta errores, los muestra todos juntos.
+7. Los resultados se muestran en pantalla (análisis semántico y sintáctico) y se guardan en los archivos de salida.
 
 ## Notas técnicas
 

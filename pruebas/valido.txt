@@ -1,0 +1,22 @@
+p#
+variables
+varent a;
+varent b;
+varcad mensaje;
+varbool bandera;
+codigo
+a = 10;
+b = a * 2 + 3;
+mensaje = "hola";
+leerbol(bandera);
+printInt(a);
+printBool(bandera);
+ponerConsola(mensaje);
+printInt(4 + 6);
+si (9 > 4) entonces
+    printInt(2);
+fin
+while (a < b)
+    a = a + 1;
+fin
+fin

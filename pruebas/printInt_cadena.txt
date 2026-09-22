@@ -1,0 +1,6 @@
+p#
+variables
+varent x;
+codigo
+printInt("hola");
+fin

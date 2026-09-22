@@ -1,0 +1,6 @@
+p#
+variables
+varent x
+codigo
+x = 1;
+fin
