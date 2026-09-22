@@ -40,6 +40,8 @@ public class FramePrincipal extends JFrame {
     private boolean ultimoTokenFuePuntoComa = true;
     private String ultimoLexema = "";
     private String ultimoTokenNombre = "";
+    private int nivelCondicionPendiente = -1;
+    private boolean ultimoCierraCondicion = false;
 
     private Set<String> tokensSinPuntoComa =
             new HashSet<>(Arrays.asList(
@@ -146,7 +148,8 @@ public class FramePrincipal extends JFrame {
                                     && !ultimoTokenNombre.equals("LlaveA")
                                     && !ultimoTokenNombre.equals("LlaveC")
                                     && !ultimoLexema.equals("{")
-                                    && !ultimoLexema.equals("");
+                                    && !ultimoLexema.equals("")
+                                    && !ultimoCierraCondicion;
 
                     if (!ultimoTokenFuePuntoComa && requierePuntoComa) {
                         erroresEncontrados.append(
@@ -166,6 +169,16 @@ public class FramePrincipal extends JFrame {
                 ultimoLexema = lexemaActual;
                 ultimoTokenNombre = nombreToken;
 
+                // Al ver si/while se anota el nivel de paréntesis en el que
+                // comienza su condición; su ')' de cierre no exige ';'.
+                if (token == Tokens.Reservadas
+                        && (lexemaActual.equals("si")
+                        || lexemaActual.equals("while"))) {
+                    nivelCondicionPendiente = pilaParentesis.size();
+                }
+
+                boolean cierraCondicion = false;
+
                 // Validación de paréntesis
                 if (token == Tokens.ParentesisA) {
                     pilaParentesis.push(lineaActual);
@@ -174,6 +187,13 @@ public class FramePrincipal extends JFrame {
 
                     if (!pilaParentesis.isEmpty()) {
                         pilaParentesis.pop();
+
+                        if (nivelCondicionPendiente >= 0
+                                && pilaParentesis.size()
+                                == nivelCondicionPendiente) {
+                            cierraCondicion = true;
+                            nivelCondicionPendiente = -1;
+                        }
                     } else {
                         erroresEncontrados.append(
                                 "Renglón: "
@@ -184,6 +204,8 @@ public class FramePrincipal extends JFrame {
                         );
                     }
                 }
+
+                ultimoCierraCondicion = cierraCondicion;
 
                 // Error léxico
                 if (token == Tokens.ERROR) {
@@ -288,6 +310,9 @@ public class FramePrincipal extends JFrame {
                 if (erroresSemanticos.isEmpty()) {
                     resultadoSem.append("Análisis semántico correcto.\n");
 
+                    // Interpreta el programa para calcular valores reales.
+                    semantico.interpretar(parser.obtenerRaiz());
+
                     // Tabla de símbolos que alimentó y consultó el análisis.
                     java.util.Map<String, AnalizadorSemantico.Tipo> tablaSem =
                             semantico.obtenerTablaSimbolos();
@@ -323,9 +348,9 @@ public class FramePrincipal extends JFrame {
 
                     anexoSemantico = anexoTabla.toString();
 
-                    // Expresiones evaluadas por plegado de constantes.
+                    // Expresiones evaluadas (constantes y con valores de variables).
                     resultadoSem.append(
-                            "\n--- EVALUACIÓN DE EXPRESIONES (plegado de constantes) ---\n"
+                            "\n--- EVALUACIÓN DE EXPRESIONES ---\n"
                     );
 
                     java.util.List<String> evaluaciones =
@@ -333,11 +358,29 @@ public class FramePrincipal extends JFrame {
 
                     if (evaluaciones.isEmpty()) {
                         resultadoSem.append(
-                                "(no hay expresiones constantes que evaluar)\n"
+                                "(no hay expresiones que evaluar)\n"
                         );
                     } else {
                         for (String ev : evaluaciones) {
                             resultadoSem.append("   ").append(ev).append("\n");
+                        }
+                    }
+
+                    // Salida de consola generada por la interpretación.
+                    java.util.List<String> salida =
+                            semantico.obtenerSalida();
+
+                    resultadoSem.append(
+                            "\n--- SALIDA DEL PROGRAMA (consola) ---\n"
+                    );
+
+                    if (salida.isEmpty()) {
+                        resultadoSem.append(
+                                "(el programa no produce salida)\n"
+                        );
+                    } else {
+                        for (String s : salida) {
+                            resultadoSem.append("   ").append(s).append("\n");
                         }
                     }
                 } else {
@@ -411,6 +454,8 @@ public class FramePrincipal extends JFrame {
         ultimoTokenFuePuntoComa = true;
         ultimoLexema = "";
         ultimoTokenNombre = "";
+        nivelCondicionPendiente = -1;
+        ultimoCierraCondicion = false;
     }
 
     private int obtenerRef(String lexema, Tokens token) {

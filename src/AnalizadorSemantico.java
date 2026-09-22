@@ -44,6 +44,7 @@ public class AnalizadorSemantico {
 
         Tipo tipo;
         boolean constante;
+        boolean tieneValor;
         Integer valorInt;
         String valorCadena;
         Boolean valorBool;
@@ -64,8 +65,20 @@ public class AnalizadorSemantico {
     /** Errores semánticos detectados (con renglón y columna). */
     private final List<String> errores = new ArrayList<>();
 
-    /** Evaluaciones resueltas por plegado de constantes, para mostrarlas. */
+    /** Evaluaciones resueltas de las expresiones, para mostrarlas. */
     private final List<String> evaluaciones = new ArrayList<>();
+
+    /** Valores en tiempo de ejecución de cada variable (nombre -> valor). */
+    private final Map<String, Object> valores = new HashMap<>();
+
+    /** Salida del programa (consola) generada por la interpretación. */
+    private final List<String> salida = new ArrayList<>();
+
+    /** Indica si se está interpretando (true) o solo comprobando tipos (false). */
+    private boolean ejecutando = false;
+
+    /** Límite de iteraciones de un bucle para evitar bucles infinitos. */
+    private static final int MAX_ITERACIONES = 10000;
 
     // =====================================================================
     // Punto de entrada
@@ -87,6 +100,9 @@ public class AnalizadorSemantico {
         pilaSemantica.clear();
         errores.clear();
         evaluaciones.clear();
+        valores.clear();
+        salida.clear();
+        ejecutando = false;
 
         if (raiz == null) {
             return errores;
@@ -109,6 +125,47 @@ public class AnalizadorSemantico {
     }
 
     /**
+     * Interpreta el programa sobre el árbol para calcular los valores reales
+     * de las expresiones. Solo debe invocarse cuando el análisis semántico
+     * (comprobación de tipos) terminó sin errores.
+     *
+     * Inicializa cada variable con su valor por defecto, recorre la sección
+     * código y, al encontrar asignaciones, impresiones y condiciones, evalúa
+     * las expresiones con los valores actuales de las variables, llenando la
+     * salida de consola y la lista de evaluaciones.
+     *
+     * @param raiz raíz del árbol sintáctico (PROGRAMA)
+     */
+    public void interpretar(NodoArbol raiz) {
+        if (raiz == null) {
+            return;
+        }
+
+        ejecutando = true;
+        valores.clear();
+        salida.clear();
+        evaluaciones.clear();
+
+        // Reconstruye el ámbito global y asigna el valor inicial de cada
+        // variable a partir de la tabla de símbolos ya validada.
+        ambitos.clear();
+        ambitos.add(new HashMap<String, Tipo>(tablaSimbolos));
+
+        for (Map.Entry<String, Tipo> e : tablaSimbolos.entrySet()) {
+            valores.put(e.getKey(), valorPorDefecto(e.getValue()));
+        }
+
+        for (NodoArbol hijo : raiz.getHijos()) {
+            if (hijo.getNombre().startsWith("SECCION CODIGO")) {
+                analizarCodigo(hijo);
+            }
+        }
+
+        ambitos.clear();
+        ejecutando = false;
+    }
+
+    /**
      * Expone la tabla de símbolos (variable -> tipo) que alimentó y consultó
      * el análisis, para mostrarla en la interfaz y en el archivo .tab.
      */
@@ -116,9 +173,14 @@ public class AnalizadorSemantico {
         return new HashMap<String, Tipo>(tablaSimbolos);
     }
 
-    /** Devuelve las expresiones constantes evaluadas durante el análisis. */
+    /** Devuelve las expresiones evaluadas durante el análisis. */
     public List<String> obtenerEvaluaciones() {
         return new ArrayList<String>(evaluaciones);
+    }
+
+    /** Devuelve la salida de consola generada por la interpretación. */
+    public List<String> obtenerSalida() {
+        return new ArrayList<String>(salida);
     }
 
     /** Traduce un tipo a su nombre en español, para los mensajes en pantalla. */
@@ -229,8 +291,10 @@ public class AnalizadorSemantico {
         Tipo tipoVar = buscarTipo(nombreVar);
 
         if (tipoVar == null) {
-            error(nodoVariable, "La variable '" + nombreVar
-                    + "' no está declarada");
+            if (!ejecutando) {
+                error(nodoVariable, "La variable '" + nombreVar
+                        + "' no está declarada");
+            }
             return;
         }
 
@@ -238,13 +302,17 @@ public class AnalizadorSemantico {
         EntradaSemantica res = evaluarExpresion(nodoExpr);
 
         if (res != null && res.tipo != null && res.tipo != tipoVar) {
-            error(instr, "Tipos incompatibles en asignación: la variable '"
-                    + nombreVar + "' es " + tipoEnEspanol(tipoVar)
-                    + " y la expresión es " + tipoEnEspanol(res.tipo));
+            if (!ejecutando) {
+                error(instr, "Tipos incompatibles en asignación: la variable '"
+                        + nombreVar + "' es " + tipoEnEspanol(tipoVar)
+                        + " y la expresión es " + tipoEnEspanol(res.tipo));
+            }
             return;
         }
 
-        if (res != null && res.constante && res.tipo != null) {
+        // Al interpretar, la variable adopta el valor calculado de la expresión.
+        if (ejecutando && res != null && res.tieneValor) {
+            guardarValor(nombreVar, tipoVar, res);
             evaluaciones.add("Línea " + instr.linea + ": " + nombreVar + " = "
                     + textoExpresion(nodoExpr) + " => " + mostrarValor(res)
                     + " (" + tipoEnEspanol(res.tipo) + ")");
@@ -272,12 +340,17 @@ public class AnalizadorSemantico {
 
             if (exigido != null && res != null && res.tipo != null
                     && res.tipo != exigido) {
-                error(instr, funcion + " requiere una expresión de tipo "
-                        + tipoEnEspanol(exigido));
+                if (!ejecutando) {
+                    error(instr, funcion + " requiere una expresión de tipo "
+                            + tipoEnEspanol(exigido));
+                }
                 continue;
             }
 
-            if (res != null && res.constante && res.tipo != null) {
+            // Al interpretar se escribe en consola y se anota la evaluación.
+            if (ejecutando && res != null && res.tieneValor) {
+                salida.add(funcion + "(" + textoExpresion(hijo) + ") => "
+                        + mostrarValor(res));
                 evaluaciones.add("Línea " + instr.linea + ": " + funcion + "("
                         + textoExpresion(hijo) + ") => " + mostrarValor(res)
                         + " (" + tipoEnEspanol(res.tipo) + ")");
@@ -301,13 +374,17 @@ public class AnalizadorSemantico {
             Tipo tipoVar = buscarTipo(nombreVar);
 
             if (tipoVar == null) {
-                error(hijo, "La variable '" + nombreVar
-                        + "' no está declarada");
+                if (!ejecutando) {
+                    error(hijo, "La variable '" + nombreVar
+                            + "' no está declarada");
+                }
             } else if (tipoVar != esperado) {
-                error(hijo, "La lectura " + palabra
-                        + " requiere una variable de tipo "
-                        + tipoEnEspanol(esperado) + ", pero '" + nombreVar
-                        + "' es " + tipoEnEspanol(tipoVar));
+                if (!ejecutando) {
+                    error(hijo, "La lectura " + palabra
+                            + " requiere una variable de tipo "
+                            + tipoEnEspanol(esperado) + ", pero '" + nombreVar
+                            + "' es " + tipoEnEspanol(tipoVar));
+                }
             }
         }
     }
@@ -335,14 +412,17 @@ public class AnalizadorSemantico {
         NodoArbol exprIzq = !expresiones.isEmpty() ? expresiones.get(0) : null;
         NodoArbol exprDer = expresiones.size() > 1 ? expresiones.get(1) : null;
 
-        if (exprIzq != null && exprDer != null && opRel != null) {
-            // Evalúa ambos lados con la pila semántica y aplica el operador.
-            EntradaSemantica izq = evaluarExpresion(exprIzq);
-            EntradaSemantica der = evaluarExpresion(exprDer);
-            EntradaSemantica cond = aplicarOperador(opRel, izq, der, instr);
+        // Solo se ejecuta el cuerpo si la condición resulta verdadera; si es
+        // falsa (o no se puede determinar), no se ejecuta nada.
+        boolean condicionVerdadera = false;
 
-            // Si la condición es constante, se resuelve en tiempo de análisis.
-            if (cond != null && cond.constante && cond.tipo == Tipo.BOOL) {
+        if (exprIzq != null && exprDer != null && opRel != null) {
+            EntradaSemantica cond = evaluarCondicion(exprIzq, exprDer, opRel,
+                    instr);
+
+            // Al interpretar, se decide la rama con el valor real calculado.
+            if (ejecutando && esBooleanoConValor(cond)) {
+                condicionVerdadera = Boolean.TRUE.equals(cond.valorBool);
                 String inicio = instr.getNombre().startsWith("Bucle")
                         ? "while"
                         : "si";
@@ -356,11 +436,55 @@ public class AnalizadorSemantico {
         // El cuerpo abre un ámbito nuevo y vuelve al ámbito exterior al cerrarse.
         if (cuerpo != null) {
             entrarAmbito();
-            for (NodoArbol ins : cuerpo.getHijos()) {
-                analizarInstruccion(ins);
+
+            if (ejecutando) {
+                if (instr.getNombre().startsWith("Bucle")) {
+                    int iteraciones = 0;
+
+                    while (condicionVerdadera && iteraciones < MAX_ITERACIONES) {
+                        for (NodoArbol ins : cuerpo.getHijos()) {
+                            analizarInstruccion(ins);
+                        }
+
+                        condicionVerdadera = (exprIzq != null && exprDer != null
+                                && opRel != null)
+                                && esVerdadera(evaluarCondicion(exprIzq, exprDer,
+                                        opRel, instr));
+
+                        iteraciones++;
+                    }
+                } else if (condicionVerdadera) {
+                    for (NodoArbol ins : cuerpo.getHijos()) {
+                        analizarInstruccion(ins);
+                    }
+                }
+            } else {
+                for (NodoArbol ins : cuerpo.getHijos()) {
+                    analizarInstruccion(ins);
+                }
             }
+
             salirAmbito();
         }
+    }
+
+    /** Evalúa una condición relacional con la pila semántica. */
+    private EntradaSemantica evaluarCondicion(NodoArbol exprIzq,
+            NodoArbol exprDer, String opRel, NodoArbol instr) {
+        EntradaSemantica izq = evaluarExpresion(exprIzq);
+        EntradaSemantica der = evaluarExpresion(exprDer);
+        return aplicarOperador(opRel, izq, der, instr);
+    }
+
+    /** Indica si la condición evaluada tiene un valor booleano concreto. */
+    private boolean esBooleanoConValor(EntradaSemantica cond) {
+        return cond != null && cond.tipo == Tipo.BOOL && cond.tieneValor;
+    }
+
+    /** Indica si la condición evaluada es un booleano cuyo valor es verdadero. */
+    private boolean esVerdadera(EntradaSemantica cond) {
+        return esBooleanoConValor(cond)
+                && Boolean.TRUE.equals(cond.valorBool);
     }
 
     // =====================================================================
@@ -454,6 +578,7 @@ public class AnalizadorSemantico {
             // Literal de cadena: tipo CADENA y valor constante (sin comillas).
             entrada.tipo = Tipo.CADENA;
             entrada.constante = true;
+            entrada.tieneValor = true;
             entrada.valorCadena = lexema.substring(1, lexema.length() - 1);
             return entrada;
         }
@@ -462,6 +587,7 @@ public class AnalizadorSemantico {
             // Literal numérico: tipo INT y valor constante.
             entrada.tipo = Tipo.INT;
             entrada.constante = true;
+            entrada.tieneValor = true;
             entrada.valorInt = Integer.parseInt(lexema);
             return entrada;
         }
@@ -476,6 +602,22 @@ public class AnalizadorSemantico {
 
         entrada.tipo = tipo;
         entrada.constante = false;
+
+        // Al interpretar, la variable aporta su valor actual (si ya lo tiene).
+        Object valor = valores.get(lexema);
+
+        if (valor != null) {
+            entrada.tieneValor = true;
+
+            if (tipo == Tipo.INT) {
+                entrada.valorInt = (Integer) valor;
+            } else if (tipo == Tipo.CADENA) {
+                entrada.valorCadena = (String) valor;
+            } else {
+                entrada.valorBool = (Boolean) valor;
+            }
+        }
+
         return entrada;
     }
 
@@ -500,16 +642,20 @@ public class AnalizadorSemantico {
                 || op.equals("*") || op.equals("/")) {
 
             if (izq.tipo != Tipo.INT || der.tipo != Tipo.INT) {
-                error(nodo, "El operador '" + op
-                        + "' requiere operandos de tipo entero");
+                if (!ejecutando) {
+                    error(nodo, "El operador '" + op
+                            + "' requiere operandos de tipo entero");
+                }
                 return invalida;
             }
 
             EntradaSemantica res = new EntradaSemantica();
             res.tipo = Tipo.INT;
 
-            if (izq.constante && der.constante) {
-                res.constante = true;
+            // El resultado se calcula si ambos operandos aportan valor
+            // (literales o variables ya asignadas).
+            if (izq.tieneValor && der.tieneValor) {
+                res.tieneValor = true;
 
                 switch (op) {
                     case "+":
@@ -523,7 +669,9 @@ public class AnalizadorSemantico {
                         break;
                     default:
                         if (der.valorInt == 0) {
-                            error(nodo, "División entre cero en la expresión");
+                            if (!ejecutando) {
+                                error(nodo, "División entre cero en la expresión");
+                            }
                             return invalida;
                         }
                         res.valorInt = izq.valorInt / der.valorInt;
@@ -537,21 +685,25 @@ public class AnalizadorSemantico {
         // ----- Operadores relacionales: el resultado siempre es booleano -----
         if (op.equals(">") || op.equals("<")) {
             if (izq.tipo != Tipo.INT || der.tipo != Tipo.INT) {
-                error(nodo, "El operador relacional '" + op
-                        + "' requiere operandos de tipo entero");
+                if (!ejecutando) {
+                    error(nodo, "El operador relacional '" + op
+                            + "' requiere operandos de tipo entero");
+                }
                 return invalida;
             }
         } else if (izq.tipo != der.tipo) {
-            error(nodo, "El operador relacional '" + op
-                    + "' requiere operandos del mismo tipo");
+            if (!ejecutando) {
+                error(nodo, "El operador relacional '" + op
+                        + "' requiere operandos del mismo tipo");
+            }
             return invalida;
         }
 
         EntradaSemantica res = new EntradaSemantica();
         res.tipo = Tipo.BOOL;
 
-        if (izq.constante && der.constante) {
-            res.constante = true;
+        if (izq.tieneValor && der.tieneValor) {
+            res.tieneValor = true;
 
             if (izq.tipo == Tipo.INT) {
                 int a = izq.valorInt;
@@ -564,6 +716,10 @@ public class AnalizadorSemantico {
                 String a = izq.valorCadena;
                 String b = der.valorCadena;
                 res.valorBool = op.equals("==") ? a.equals(b) : !a.equals(b);
+            } else {
+                boolean a = izq.valorBool;
+                boolean b = der.valorBool;
+                res.valorBool = op.equals("==") ? a == b : a != b;
             }
         }
 
@@ -606,6 +762,33 @@ public class AnalizadorSemantico {
         }
 
         return null;
+    }
+
+    /** Valor inicial de una variable según su tipo (0, cadena vacía o false). */
+    private Object valorPorDefecto(Tipo tipo) {
+        switch (tipo) {
+            case INT:
+                return Integer.valueOf(0);
+            case CADENA:
+                return "";
+            default:
+                return Boolean.FALSE;
+        }
+    }
+
+    /** Guarda el valor evaluado de una expresión en la variable indicada. */
+    private void guardarValor(String nombre, Tipo tipo, EntradaSemantica res) {
+        switch (tipo) {
+            case INT:
+                valores.put(nombre, res.valorInt);
+                break;
+            case CADENA:
+                valores.put(nombre, res.valorCadena);
+                break;
+            default:
+                valores.put(nombre, res.valorBool);
+                break;
+        }
     }
 
     // =====================================================================
